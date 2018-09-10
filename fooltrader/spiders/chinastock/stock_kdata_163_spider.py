@@ -2,19 +2,15 @@
 
 import io
 import os
-from datetime import datetime
 
 import pandas as pd
 import scrapy
 from scrapy import Request
 from scrapy import signals
 
-from fooltrader.api.technical import get_security_list
+from fooltrader.backend import file_locator, file_backend
 from fooltrader.contract.data_contract import KDATA_STOCK_COL, KDATA_COLUMN_163, KDATA_INDEX_COLUMN_163, \
     KDATA_INDEX_COL
-from fooltrader.contract.files_contract import get_kdata_path
-from fooltrader.settings import STOCK_START_CODE, STOCK_END_CODE
-from fooltrader.spiders.common import random_proxy
 from fooltrader.utils import utils
 
 
@@ -30,42 +26,25 @@ class StockKdata163Spider(scrapy.Spider):
         }
     }
 
-    # 指定日期的话，是用来抓增量数据的
-    # 如果需要代理请打开
-    # @random_proxy
-    def yield_request(self, item, start_date=None, end_date=None):
-        data_path = get_kdata_path(item, source='163')
+    def start_requests(self):
+        security_items = self.settings.get("security_items")
 
-        if start_date:
-            start = start_date.strftime('%Y%m%d')
-        else:
-            start = item['listDate'].replace('-', '')
+        for security_item in security_items:
+            latest_timestamp, _ = file_backend.get_latest_kdata_timestamp(security_item)
+            data_path = file_locator.get_kdata_path(security_item)
 
-        if end_date:
-            end = end_date.strftime('%Y%m%d')
-        else:
-            end = datetime.today().strftime('%Y%m%d')
+            if latest_timestamp:
+                start = latest_timestamp.strftime('%Y%m%d')
+            else:
+                start = security_item['listDate'].replace('-', '')
 
-        if not os.path.exists(data_path) or start_date or end_date:
-            if item['exchange'] == 'sh':
+            if security_item['exchange'] == 'sh':
                 exchange_flag = 0
             else:
                 exchange_flag = 1
-            url = self.get_k_data_url(exchange_flag, item['code'], start, end)
-            yield Request(url=url, meta={'path': data_path, 'item': item},
+            url = self.get_k_data_url(exchange_flag, security_item['code'], start)
+            yield Request(url=url, meta={'path': data_path, 'item': security_item},
                           callback=self.download_day_k_data)
-
-    def start_requests(self):
-        item = self.settings.get("security_item")
-        start_date = self.settings.get("start_date")
-        end_date = self.settings.get("end_date")
-        if item is not None:
-            for request in self.yield_request(item, start_date, end_date):
-                yield request
-        else:
-            for _, item in get_security_list(start_code=STOCK_START_CODE, end_code=STOCK_END_CODE).iterrows():
-                for request in self.yield_request(item):
-                    yield request
 
     def download_day_k_data(self, response):
         path = response.meta['path']
@@ -113,7 +92,7 @@ class StockKdata163Spider(scrapy.Spider):
                 saved_df = saved_df.loc[:, KDATA_STOCK_COL]
 
             saved_df = saved_df.drop_duplicates(subset='timestamp', keep='last')
-            saved_df = saved_df.set_index(saved_df['timestamp'],drop=False)
+            saved_df = saved_df.set_index(saved_df['timestamp'], drop=False)
             saved_df.index = pd.to_datetime(saved_df.index)
             saved_df = saved_df.sort_index()
             saved_df.to_csv(path, index=False)
@@ -129,6 +108,6 @@ class StockKdata163Spider(scrapy.Spider):
     def spider_closed(self, spider, reason):
         spider.logger.info('Spider closed: %s,%s\n', spider.name, reason)
 
-    def get_k_data_url(self, exchange, code, start, end):
-        return 'http://quotes.money.163.com/service/chddata.html?code={}{}&start={}&end={}'.format(
-            exchange, code, start, end)
+    def get_k_data_url(self, exchange, code, start):
+        return 'http://quotes.money.163.com/service/chddata.html?code={}{}&start={}'.format(
+            exchange, code, start)

@@ -32,11 +32,8 @@ def df_for_date_range(df, start_date=None, end_date=None):
 
 
 # we store the data always with fields:timestamp,securityId,code
-def pd_read_csv(csv_path, converters=None, index='timestamp', generate_id=False):
-    if converters:
-        df = pd.read_csv(csv_path, converters=converters)
-    else:
-        df = pd.read_csv(csv_path, dtype={"code": str, 'timestamp': str})
+def pd_read_csv(csv_path, index='timestamp', generate_id=False):
+    df = pd.read_csv(csv_path, dtype={"code": str, 'timestamp': str})
 
     if not df.empty:
         # generate id if need

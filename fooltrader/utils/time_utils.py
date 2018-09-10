@@ -31,6 +31,10 @@ def now_timestamp():
     return int(pd.Timestamp.utcnow().timestamp() * 1000)
 
 
+def now_pd_timestamp():
+    return pd.Timestamp.now()
+
+
 def to_time_str(the_time, fmt=TIME_FORMAT_DAY):
     try:
         return arrow.get(to_pd_timestamp(the_time)).format(fmt)
@@ -55,17 +59,9 @@ def get_year_quarter(time):
     return time.year, ((time.month - 1) // 3) + 1
 
 
-def get_quarters(start, end=pd.Timestamp.now()):
-    start_year_quarter = get_year_quarter(start)
-    current_year_quarter = get_year_quarter(end)
-    if current_year_quarter[0] == start_year_quarter[0]:
-        return [(current_year_quarter[0], x) for x in range(start_year_quarter[1], current_year_quarter[1] + 1)]
-    elif current_year_quarter[0] - start_year_quarter[0] == 1:
-        return [(start_year_quarter[0], x) for x in range(start_year_quarter[1], 5)] + \
-               [(current_year_quarter[0], x) for x in range(1, current_year_quarter[1] + 1)]
-    elif current_year_quarter[0] - start_year_quarter[0] > 1:
-        return [(start_year_quarter[0], x) for x in range(start_year_quarter[1], 5)] + \
-               [(x, y) for x in range(start_year_quarter[0] + 1, current_year_quarter[0]) for y in range(1, 5)] + \
-               [(current_year_quarter[0], x) for x in range(1, current_year_quarter[1] + 1)]
-    else:
-        raise Exception("wrong start time:{}".format(start))
+def current_year_quarter():
+    return get_year_quarter(now_pd_timestamp())
+
+
+if __name__ == '__main__':
+    print(current_year_quarter())
